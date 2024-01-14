@@ -79,11 +79,22 @@ class ContextDecorator(object):
         return self
 
     def __call__(self, func):
-        @wraps(func)
-        def inner(*args, **kwds):
-            with self._recreate_cm():
-                return func(*args, **kwds)
-        return inner
+        if bool(func.__code__.co_flags & 0x0080):
+
+            @wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                with self._recreate_cm():
+                    return await func(*args, **kwargs)
+
+            return async_wrapper
+        else:
+
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                with self._recreate_cm():
+                    return func(*args, **kwargs)
+
+            return wrapper
 
 
 class AsyncContextDecorator(object):
@@ -95,11 +106,22 @@ class AsyncContextDecorator(object):
         return self
 
     def __call__(self, func):
-        @wraps(func)
-        async def inner(*args, **kwds):
-            async with self._recreate_cm():
-                return await func(*args, **kwds)
-        return inner
+        if bool(func.__code__.co_flags & 0x0080):
+
+            @wraps(func)
+            async def inner(*args, **kwds):
+                async with self._recreate_cm():
+                    return await func(*args, **kwds)
+
+            return inner
+        else:
+
+            @wraps(func)
+            async def inner(*args, **kwds):
+                async with self._recreate_cm():
+                    return func(*args, **kwds)
+
+            return inner
 
 
 class _GeneratorContextManagerBase:
@@ -300,10 +322,20 @@ def contextmanager(func):
         finally:
             <cleanup>
     """
-    @wraps(func)
-    def helper(*args, **kwds):
-        return _GeneratorContextManager(func, args, kwds)
-    return helper
+    if bool(func.__code__.co_flags & 0x0080):
+
+        @wraps(func)
+        def helper(*args, **kwds):
+            return _AsyncGeneratorContextManager(func, args, kwds)
+
+        return helper
+    else:
+
+        @wraps(func)
+        def helper(*args, **kwds):
+            return _GeneratorContextManager(func, args, kwds)
+
+        return helper
 
 
 def asynccontextmanager(func):
@@ -336,6 +368,7 @@ def asynccontextmanager(func):
     @wraps(func)
     def helper(*args, **kwds):
         return _AsyncGeneratorContextManager(func, args, kwds)
+
     return helper
 
 

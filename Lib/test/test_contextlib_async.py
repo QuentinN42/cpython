@@ -362,22 +362,52 @@ class AsyncContextManagerTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(depth, 0)
 
     async def test_decorator(self):
-        entered = False
+        state = []
+
+        @contextmanager
+        def context():
+            nonlocal state
+            state.append('s start')
+            yield
+            state.append('s end')
 
         @asynccontextmanager
-        async def context():
-            nonlocal entered
-            entered = True
+        async def acontext():
+            nonlocal state
+            state.append('a start')
             yield
-            entered = False
+            state.append('a end')
 
         @context()
-        async def test():
-            self.assertTrue(entered)
+        def s_s():
+            nonlocal state
+            state.append('s_s')
 
-        self.assertFalse(entered)
-        await test()
-        self.assertFalse(entered)
+        @context()
+        async def s_a():
+            nonlocal state
+            state.append('s_a')
+
+        @acontext()
+        def a_s():
+            nonlocal state
+            state.append('a_s')
+
+        @acontext()
+        async def a_a():
+            nonlocal state
+            state.append('a_a')
+
+        s_s()
+        await s_a()
+        await a_s()
+        await a_a()
+        self.assertEqual(state, [
+            's start', 's_s', 's end',
+            's start', 's_a', 's end',
+            'a start', 'a_s', 'a end',
+            'a start', 'a_a', 'a end',
+        ])
 
     async def test_decorator_with_exception(self):
         entered = False
